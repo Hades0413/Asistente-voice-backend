@@ -1,5 +1,3 @@
-// src/modules/streaming/services/application/streaming-session.service.ts
-
 import { randomUUID } from 'node:crypto'
 import type WebSocket from 'ws'
 
@@ -21,7 +19,6 @@ export type StreamingSession = {
 }
 
 export class StreamingSessionService {
-  // Sonar: readonly (S2933)
   private readonly sessions = new Map<string, StreamingSession>()
 
   create(params: { phoneNumber: string; agentId?: string }) {
@@ -65,7 +62,6 @@ export class StreamingSessionService {
   close(sessionId: string) {
     const s = this.sessions.get(sessionId)
 
-    // Limpieza defensiva del panel WS (si existe)
     const ws = s?.wsPanel
     if (ws && ws.readyState === ws.OPEN) {
       try {

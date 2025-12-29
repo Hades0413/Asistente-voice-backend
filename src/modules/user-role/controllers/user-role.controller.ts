@@ -7,7 +7,6 @@ import { UserRoleService } from '../services/domain/user-role.service'
 export class UserRoleController {
   private readonly service = new UserRoleService(new UserRoleRepository())
 
-  // POST /api/user-roles
   create = async (req: Request, res: Response) => {
     try {
       if (!req.auth) return res.status(401).json({ error: 'UNAUTHORIZED' })
@@ -20,8 +19,6 @@ export class UserRoleController {
     }
   }
 
-  // GET /api/user-roles
-  // Opcional: filtros por query (?user_id=1 o ?role_id=2)
   list = async (req: Request, res: Response) => {
     try {
       if (!req.auth) return res.status(401).json({ error: 'UNAUTHORIZED' })
@@ -29,7 +26,6 @@ export class UserRoleController {
       const userIdQ = req.query.user_id
       const roleIdQ = req.query.role_id
 
-      // Si viene user_id, valida y filtra por user
       if (userIdQ !== undefined) {
         const userId = this.parseNumberQuery(userIdQ, 'user_id')
         if (userId === null)
@@ -39,7 +35,6 @@ export class UserRoleController {
         return res.status(200).json(rows)
       }
 
-      // Si viene role_id, valida y filtra por role
       if (roleIdQ !== undefined) {
         const roleId = this.parseNumberQuery(roleIdQ, 'role_id')
         if (roleId === null)
@@ -49,7 +44,6 @@ export class UserRoleController {
         return res.status(200).json(rows)
       }
 
-      // Sin filtros: listar roles
       const rows = await this.service.listAll()
       return res.status(200).json(rows)
     } catch (err: any) {
@@ -57,7 +51,6 @@ export class UserRoleController {
     }
   }
 
-  // GET /api/user-roles/:userId/:roleId
   getByIds = async (req: Request, res: Response) => {
     try {
       if (!req.auth) return res.status(401).json({ error: 'UNAUTHORIZED' })
@@ -76,7 +69,6 @@ export class UserRoleController {
     }
   }
 
-  // PATCH /api/user-roles/:userId/:roleId/state
   setState = async (req: Request, res: Response) => {
     try {
       if (!req.auth) return res.status(401).json({ error: 'UNAUTHORIZED' })
@@ -97,7 +89,6 @@ export class UserRoleController {
     }
   }
 
-  // DELETE /api/user-roles/:userId/:roleId
   delete = async (req: Request, res: Response) => {
     try {
       if (!req.auth) return res.status(401).json({ error: 'UNAUTHORIZED' })
@@ -116,10 +107,6 @@ export class UserRoleController {
     }
   }
 
-  // -------------------------
-  // Helpers (para evitar S7735 y repetir lógica)
-  // -------------------------
-
   private parseNumberParam(value: string): number | null {
     const n = Number(value)
     if (Number.isFinite(n)) return n
@@ -127,7 +114,6 @@ export class UserRoleController {
   }
 
   private parseNumberQuery(value: unknown, _field: string): number | null {
-    // Express puede darte string o string[]; tomamos el primero si es array
     const raw = Array.isArray(value) ? value[0] : value
     if (typeof raw !== 'string') return null
 

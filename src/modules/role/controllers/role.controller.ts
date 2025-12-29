@@ -9,7 +9,6 @@ type SetStateBody = { state: boolean }
 export class RoleController {
   private readonly service = new RoleService(new RoleRepository())
 
-  // POST /api/roles
   create = async (req: Request<any, any, CreateRoleDto>, res: Response) => {
     try {
       if (!req.auth) return res.status(401).json({ error: 'UNAUTHORIZED' })
@@ -24,7 +23,6 @@ export class RoleController {
     }
   }
 
-  // GET /api/roles
   list = async (req: Request, res: Response) => {
     try {
       if (!req.auth) return res.status(401).json({ error: 'UNAUTHORIZED' })
@@ -36,7 +34,6 @@ export class RoleController {
     }
   }
 
-  // GET /api/roles/:id
   getById = async (req: Request<{ id: string }>, res: Response) => {
     try {
       if (!req.auth) return res.status(401).json({ error: 'UNAUTHORIZED' })
@@ -51,7 +48,6 @@ export class RoleController {
     }
   }
 
-  // PATCH /api/roles/:id
   update = async (req: Request<{ id: string }, any, UpdateRoleDto>, res: Response) => {
     try {
       if (!req.auth) return res.status(401).json({ error: 'UNAUTHORIZED' })
@@ -69,7 +65,6 @@ export class RoleController {
     }
   }
 
-  // PATCH /api/roles/:id/state
   setState = async (req: Request<{ id: string }, any, SetStateBody>, res: Response) => {
     try {
       if (!req.auth) return res.status(401).json({ error: 'UNAUTHORIZED' })
@@ -91,7 +86,6 @@ export class RoleController {
     }
   }
 
-  // DELETE /api/roles/:id
   delete = async (req: Request<{ id: string }>, res: Response) => {
     try {
       if (!req.auth) return res.status(401).json({ error: 'UNAUTHORIZED' })
@@ -107,10 +101,6 @@ export class RoleController {
       return this.handleError(res, 'ROLE_DELETE_ERROR', err)
     }
   }
-
-  // -------------------------
-  // Helpers
-  // -------------------------
 
   private parseNumberParam(value: string): number | null {
     const n = Number(value)

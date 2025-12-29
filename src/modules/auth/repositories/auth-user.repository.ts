@@ -64,7 +64,6 @@ export class AuthUserRepository {
     )
   }
 
-  // opcional si luego quieres lockout automático
   async setLockout(userId: number, lockoutEnd: Date): Promise<void> {
     await query(
       `

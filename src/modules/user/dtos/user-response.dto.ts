@@ -1,4 +1,3 @@
-// user-response.dto.ts
 export interface UserResponseDto {
   id: number
   username: string

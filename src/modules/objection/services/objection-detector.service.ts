@@ -11,7 +11,6 @@ export class ObjectionDetectorService {
     const candidates = this.trigger.detectCandidates(params.text)
     if (!candidates.length) return null
 
-    // cooldown por tipo (15s)
     const now = Date.now()
     const candidateTypes = candidates.map((c) => c.candidate)
     const blocked = candidateTypes.some((t) => now - (params.cooldown[`obj_${t}`] ?? 0) < 15000)

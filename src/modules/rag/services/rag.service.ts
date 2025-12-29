@@ -1,6 +1,5 @@
 export class RagService {
   async retrieve(type: string) {
-    // MVP: KB simple, luego cambias por Qdrant/Pinecone sin romper nada
     const kb: Record<string, { title: string; text: string }[]> = {
       PRICE_HIGH: [
         {

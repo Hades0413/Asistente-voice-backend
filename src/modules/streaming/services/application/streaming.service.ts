@@ -1,7 +1,7 @@
-import { StreamingSessionService } from './streaming-session.service'
-import { VoipService } from '../../../../infra/voip/voip.service'
 import { SttService } from '../../../../infra/stt/stt.service'
+import { VoipService } from '../../../../infra/voip/voip.service'
 import { StreamingProcessorService } from '../domain/streaming-processor.service'
+import { StreamingSessionService } from './streaming-session.service'
 
 type StartCallInput = {
   phoneNumber: string
@@ -12,13 +12,13 @@ type StartCallOutput = {
   sessionId: string
   callId: string
 
-  /** URL para que tu frontend conecte al panel WS */
   panelWsPath: string
   panelWsUrl: string
 
-  /** CallSid de Twilio */
   providerCallId: string
 }
+
+type LogCtx = Record<string, unknown>
 
 export class StreamingService {
   constructor(
@@ -28,50 +28,106 @@ export class StreamingService {
     private readonly processor: StreamingProcessorService
   ) {}
 
+  private logInfo(event: string, ctx: LogCtx = {}) {
+    console.info('[STREAMING]', event, ctx)
+  }
+
+  private logWarn(event: string, ctx: LogCtx = {}) {
+    console.warn('[STREAMING]', event, ctx)
+  }
+
+  private logError(event: string, err: unknown, ctx: LogCtx = {}) {
+    const e = err instanceof Error ? err : new Error(String(err))
+    console.error('[STREAMING]', event, {
+      ...ctx,
+      errorName: e.name,
+      errorMessage: e.message,
+      errorStack: e.stack,
+    })
+  }
+
+  private previewText(text: string, max = 200) {
+    if (text.length <= max) return text
+    return `${text.slice(0, max)}…`
+  }
+
   async startCall(params: StartCallInput): Promise<StartCallOutput> {
-    // 1) Crear sesión
+    const op = 'startCall'
+    const startedAt = Date.now()
+
     const session = this.sessions.create({
       phoneNumber: params.phoneNumber,
       agentId: params.agentId,
     })
 
-    // 2) Arrancar STT ANTES de la llamada (para no perder el primer audio)
-    await this.stt.start(session.sessionId, {
-      onPartial: (text) => {
-        // Sonar: no retornar Promise aquí
-        this.processor.onPartial(session.sessionId, text)
-      },
-      onFinal: (text) => {
-        // processor.onFinal es async, pero el callback espera void.
-        // Disparamos y atrapamos error.
-        this.processor.onFinal(session.sessionId, text).catch((err) => {
-          this.processor.onPartial(session.sessionId, '') // no-op defensivo
-          // Notificar al panel que algo falló procesando IA
-          // (si quieres un evento específico, aquí es el lugar)
-          // Igual no reventamos el stream
-          // eslint-disable-next-line no-console
-          console.warn('[STREAMING] processor.onFinal failed', err)
-        })
-      },
-      onError: (err) => {
-        // Notificar al panel (mínimo)
-        try {
-          this.processor.onPartial(session.sessionId, '')
-          // Podrías añadir un evento WS: STT_ERROR (si lo soportas en el frontend)
-          // Ej: this.processor.ws.send(session.sessionId, 'STT_ERROR', { message: err.message })
-          // Como processor.ws es privado, usa processor.end o crea un método notifyError si quieres.
-          // Por ahora dejamos el warning.
-          // eslint-disable-next-line no-console
-          console.warn('[STT] error', err)
-        } catch {
-          // no-op
-        }
-      },
+    this.logInfo(`${op}.session_created`, {
+      sessionId: session.sessionId,
+      callId: session.callId,
+      phoneNumber: params.phoneNumber,
+      agentId: params.agentId ?? null,
     })
 
-    // 3) Iniciar llamada con Twilio
+    try {
+      this.logInfo(`${op}.stt_starting`, { sessionId: session.sessionId })
+
+      await this.stt.start(session.sessionId, {
+        onPartial: (text) => {
+          console.debug('[STT]', 'partial', {
+            sessionId: session.sessionId,
+            len: text?.length ?? 0,
+          })
+          this.processor.onPartial(session.sessionId, text)
+        },
+
+        onFinal: (text) => {
+          this.logInfo('stt.final', {
+            sessionId: session.sessionId,
+            len: text?.length ?? 0,
+            text: this.previewText(text ?? '', 200),
+          })
+
+          this.processor.onFinal(session.sessionId, text).catch((err) => {
+            try {
+              this.processor.onPartial(session.sessionId, '')
+            } catch (e) {
+              this.logWarn('processor.onPartial_noop_failed', {
+                sessionId: session.sessionId,
+                message: e instanceof Error ? e.message : String(e),
+              })
+            }
+
+            this.logError('processor.onFinal_failed', err, { sessionId: session.sessionId })
+          })
+        },
+
+        onError: (err) => {
+          this.logError('stt.error', err, { sessionId: session.sessionId })
+
+          try {
+            this.processor.onPartial(session.sessionId, '')
+          } catch (e) {
+            this.logWarn('processor.onPartial_noop_failed', {
+              sessionId: session.sessionId,
+              message: e instanceof Error ? e.message : String(e),
+            })
+          }
+        },
+      })
+
+      this.logInfo(`${op}.stt_started`, { sessionId: session.sessionId })
+    } catch (err) {
+      this.logError(`${op}.stt_start_failed`, err, { sessionId: session.sessionId })
+      await this.safeStop(session.sessionId, 'STT_START_FAILED')
+      throw err
+    }
+
     let providerCallId = ''
     try {
+      this.logInfo(`${op}.voip_starting`, {
+        sessionId: session.sessionId,
+        phoneNumber: params.phoneNumber,
+      })
+
       const started = await this.voip.startCall({
         phoneNumber: params.phoneNumber,
         sessionId: session.sessionId,
@@ -79,23 +135,35 @@ export class StreamingService {
 
       providerCallId = started.providerCallId
       this.sessions.setProviderCallId(session.sessionId, providerCallId)
+
+      this.logInfo(`${op}.voip_started`, {
+        sessionId: session.sessionId,
+        providerCallId,
+      })
     } catch (err) {
-      // Si falla la llamada, apaga STT y cierra sesión
+      this.logError(`${op}.voip_start_failed`, err, { sessionId: session.sessionId })
       await this.safeStop(session.sessionId, 'VOIP_START_FAILED')
       throw err
     }
 
-    // 4) URL WS del panel (para tu frontend)
-    // Devolvemos tanto path como URL absoluta (útil cuando tu frontend está en otro dominio)
     const panelWsPath = `/ws/panel?sessionId=${session.sessionId}`
 
-    // Si PUBLIC_URL es https -> panel debe ser wss
-    // Si PUBLIC_URL es http -> panel ws
-    const basePublicUrl =
-      process.env.PUBLIC_URL ?? `http://localhost:${process.env.PORT ?? 3000}`
-    const panelWsUrl = basePublicUrl
-      .replace(/^http:/, 'ws:')
-      .replace(/^https:/, 'wss:') + panelWsPath
+    const basePublicUrl = process.env.PUBLIC_URL ?? `http://localhost:${process.env.PORT ?? 3000}`
+
+    const panelWsUrl =
+      basePublicUrl.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:') + panelWsPath
+
+    this.logInfo(`${op}.panel_ws_ready`, {
+      sessionId: session.sessionId,
+      panelWsPath,
+      panelWsUrl,
+      basePublicUrl,
+    })
+
+    this.logInfo(`${op}.done`, {
+      sessionId: session.sessionId,
+      ms: Date.now() - startedAt,
+    })
 
     return {
       sessionId: session.sessionId,
@@ -107,51 +175,93 @@ export class StreamingService {
   }
 
   async endCall(sessionId: string, reason?: string) {
-    const s = this.sessions.get(sessionId)
-    if (!s) return
+    const op = 'endCall'
+    const startedAt = Date.now()
 
-    // 1) Colgar llamada si existe providerCallId
+    this.logInfo(`${op}.requested`, { sessionId, reason: reason ?? null })
+
+    const s = this.sessions.get(sessionId)
+    if (!s) {
+      this.logWarn(`${op}.session_not_found`, { sessionId })
+      return
+    }
+
     if (s.providerCallId) {
       try {
+        this.logInfo(`${op}.voip_ending`, {
+          sessionId,
+          providerCallId: s.providerCallId,
+        })
         await this.voip.endCall(s.providerCallId)
+        this.logInfo(`${op}.voip_ended`, {
+          sessionId,
+          providerCallId: s.providerCallId,
+        })
       } catch (err) {
-        // No bloquees cleanup por fallo de proveedor
-        // eslint-disable-next-line no-console
-        console.warn('[STREAMING] voip.endCall failed', err)
+        this.logError(`${op}.voip_end_failed`, err, {
+          sessionId,
+          providerCallId: s.providerCallId,
+        })
       }
+    } else {
+      this.logInfo(`${op}.voip_skip_no_providerCallId`, { sessionId })
     }
 
-    // 2) Detener STT
     try {
+      this.logInfo(`${op}.stt_stopping`, { sessionId })
       await this.stt.stop(sessionId)
+      this.logInfo(`${op}.stt_stopped`, { sessionId })
     } catch (err) {
-      // eslint-disable-next-line no-console
-      console.warn('[STREAMING] stt.stop failed', err)
+      this.logError(`${op}.stt_stop_failed`, err, { sessionId })
     }
 
-    // 3) Emitir resumen final / cierre
     try {
+      this.logInfo(`${op}.processor_ending`, { sessionId, reason: reason ?? null })
       this.processor.end(sessionId, reason)
+      this.logInfo(`${op}.processor_ended`, { sessionId })
     } catch (err) {
-      // eslint-disable-next-line no-console
-      console.warn('[STREAMING] processor.end failed', err)
+      this.logError(`${op}.processor_end_failed`, err, { sessionId })
     }
 
-    // 4) Cerrar sesión
-    this.sessions.close(sessionId)
+    try {
+      this.sessions.close(sessionId)
+      this.logInfo(`${op}.session_closed`, {
+        sessionId,
+        ms: Date.now() - startedAt,
+      })
+    } catch (err) {
+      this.logError(`${op}.session_close_failed`, err, { sessionId })
+    }
   }
 
   private async safeStop(sessionId: string, reason: string) {
+    const op = 'safeStop'
+    const startedAt = Date.now()
+
+    this.logWarn(`${op}.starting`, { sessionId, reason })
+
     try {
       await this.stt.stop(sessionId)
-    } catch {
-      // no-op
+      this.logInfo(`${op}.stt_stopped`, { sessionId })
+    } catch (err) {
+      this.logError(`${op}.stt_stop_failed`, err, { sessionId })
     }
+
     try {
       this.processor.end(sessionId, reason)
-    } catch {
-      // no-op
+      this.logInfo(`${op}.processor_ended`, { sessionId, reason })
+    } catch (err) {
+      this.logError(`${op}.processor_end_failed`, err, { sessionId })
     }
-    this.sessions.close(sessionId)
+
+    try {
+      this.sessions.close(sessionId)
+      this.logInfo(`${op}.session_closed`, {
+        sessionId,
+        ms: Date.now() - startedAt,
+      })
+    } catch (err) {
+      this.logError(`${op}.session_close_failed`, err, { sessionId })
+    }
   }
 }

@@ -1,9 +1,7 @@
-// src/config/env.ts
 import dotenv from 'dotenv'
 
 dotenv.config()
 
-// Opcional: validación temprana
 export function validateEnv() {
   const required = [
     'PUBLIC_URL',

@@ -29,11 +29,9 @@ export class StreamingProcessorService {
 
     this.ws.send(sessionId, 'TRANSCRIPT_FINAL', { text, ts })
 
-    // Resumen incremental
     s.memory.runningSummary = this.summary.incremental(s.memory.runningSummary, text)
     this.ws.send(sessionId, 'SUMMARY_UPDATE', { text: s.memory.runningSummary })
 
-    // Objection hybrid: keyword trigger -> LLM confirm
     const context = s.memory.lastUtterances.slice(-10).map((x) => x.text)
     const hit = await this.objection.detect({ text, context, cooldown: s.memory.cooldown })
     if (!hit) return

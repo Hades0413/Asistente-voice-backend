@@ -92,7 +92,6 @@ export class UserRepository {
     if (patch.lastname !== undefined) add('lastname', patch.lastname)
     if (patch.photo !== undefined) add('photo', patch.photo ?? null)
 
-    // siempre
     add('updated_at', new Date())
     add('updated_by', updatedBy)
 

@@ -1,5 +1,3 @@
-// src/modules/ai/providers/llm.provider.ts
-
 export type ObjectionClassification = {
   type: string
   confidence: number
@@ -22,11 +20,9 @@ export type SuggestionResult = {
 }
 
 export class LlmProvider implements LlmClassifierPort {
-  // Aquí conectarás OpenAI real
   constructor(private readonly apiKey?: string) {}
 
   async classifyObjection(input: { text: string; context: string[]; candidates: string[] }) {
-    // MVP: decisión simple (para no romper) + luego lo reemplazas por llamada real
     const t = input.text.toLowerCase()
     const pick =
       input.candidates.find((c) => c === 'PRICE_HIGH' && /car|presupuesto|alto/.test(t)) ??

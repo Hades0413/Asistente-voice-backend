@@ -49,7 +49,6 @@ export class SttService {
         } else if (data instanceof ArrayBuffer) {
           jsonString = Buffer.from(data).toString('utf8')
         } else {
-          // fallback defensivo
           return
         }
 

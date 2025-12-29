@@ -67,10 +67,6 @@ export class RoleService {
     return { ok: true }
   }
 
-  // -------------------------
-  // Helpers
-  // -------------------------
-
   private assertValidId(id: number) {
     if (!Number.isFinite(id) || id <= 0) throw new Error('VALIDATION_ERROR: Invalid id')
   }

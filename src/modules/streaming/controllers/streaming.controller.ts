@@ -4,8 +4,6 @@ import type { StreamingService } from '../services/application/streaming.service
 export class StreamingController {
   constructor(private readonly getService: () => StreamingService) {}
 
-  // POST /api/streaming/start-call
-  // body: { phoneNumber: string, agentId?: string }
   startCall = async (req: Request, res: Response) => {
     try {
       const service = this.getService()
@@ -18,8 +16,6 @@ export class StreamingController {
         return res.status(400).json({ error: 'phoneNumber is required' })
       }
 
-      //Aquí asumo que tu startCall recibe objeto (como lo venías planteando).
-      // Si tu startCall recibe solo string, me dices y lo ajusto.
       const out = await service.startCall({
         phoneNumber,
         agentId,

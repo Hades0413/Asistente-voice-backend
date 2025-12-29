@@ -10,7 +10,6 @@ import { StreamingController } from '../../modules/streaming/controllers/streami
 import { TwilioController } from '../../modules/streaming/controllers/twilio.controller'
 import { AuthMiddleware } from '../../shared/middlewares/auth/auth.middleware'
 
-//IMPORTA EL CONTAINER desde container.ts (evita circular deps)
 import { container } from '../../container'
 
 const router = Router()
@@ -20,18 +19,12 @@ const userController = new UserController()
 const roleController = new RoleController()
 const userRoleController = new UserRoleController()
 
-//Controllers con dependencias correctas (lazy)
-// OJO: ahora StreamingController recibe () => StreamingService
 const streamingController = new StreamingController(() => container.streamingService)
 const twilioController = new TwilioController()
 
-// -------------------------
-// Public
-// -------------------------
 router.get('/health', healthCheck)
 router.post('/auth/login', authController.login)
 
-//Twilio webhook (PUBLIC)
 router.post('/twilio/voice', twilioController.voiceWebhook)
 
 // -------------------------

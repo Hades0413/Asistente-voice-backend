@@ -8,7 +8,6 @@ import { UserRepository } from '../repositories/user.repository'
 export class UserService {
   constructor(private readonly userRepo: UserRepository) {}
 
-  // CREATE
   async createUser(dto: CreateUserDto, createdBy: string): Promise<UserResponseDto> {
     const username = dto.username.trim()
     const email = dto.email.trim().toLowerCase()
@@ -42,13 +41,11 @@ export class UserService {
     return UserMapper.toResponse(user)
   }
 
-  // LIST ALL
   async listUsers(): Promise<UserResponseDto[]> {
     const users = await this.userRepo.findAll()
     return users.map(UserMapper.toResponse)
   }
 
-  // GET BY ID
   async getUserById(id: number): Promise<UserResponseDto> {
     this.assertValidId(id)
 
@@ -58,7 +55,6 @@ export class UserService {
     return UserMapper.toResponse(user)
   }
 
-  // UPDATE (sin state)
   async updateUser(id: number, dto: UpdateUserDto, updatedBy: string): Promise<UserResponseDto> {
     this.assertValidId(id)
     this.assertStateNotEditable(dto)
@@ -69,7 +65,6 @@ export class UserService {
     return UserMapper.toResponse(updated)
   }
 
-  // UPDATE STATE (método separado)
   async setUserState(id: number, state: boolean, updatedBy: string): Promise<UserResponseDto> {
     this.assertValidId(id)
     if (typeof state !== 'boolean') throw new Error('VALIDATION_ERROR: state must be boolean')
@@ -78,7 +73,6 @@ export class UserService {
     return UserMapper.toResponse(updated)
   }
 
-  // DELETE (soft delete)
   async deleteUser(id: number, deletedBy: string): Promise<{ ok: true }> {
     this.assertValidId(id)
 
@@ -87,10 +81,6 @@ export class UserService {
 
     return { ok: true }
   }
-
-  // -------------------------
-  // Helpers
-  // -------------------------
 
   private assertValidId(id: number) {
     if (!Number.isFinite(id)) throw new Error('VALIDATION_ERROR: Invalid id')

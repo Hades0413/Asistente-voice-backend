@@ -1,6 +1,3 @@
-// ===============================
-// src/modules/auth/services/application/login.service.ts
-// ===============================
 import crypto from 'node:crypto'
 
 import { UserLoginHistoryRepository } from '../../../user-login-history/repositories/user-login-history.repository'

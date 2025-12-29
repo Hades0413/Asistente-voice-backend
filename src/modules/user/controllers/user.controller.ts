@@ -6,14 +6,12 @@ import { UserService } from '../services/user.service'
 export class UserController {
   private readonly service = new UserService(new UserRepository())
 
-  // POST /api/users
   create = async (req: Request, res: Response) => {
     try {
       if (!req.auth) return res.status(401).json({ error: 'UNAUTHORIZED' })
 
       const dto = req.body as CreateUserDto
 
-      //tu service recibe string, no number
       const createdBy = String(req.auth.userId)
 
       const user = await this.service.createUser(dto, createdBy)
